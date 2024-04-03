@@ -27,5 +27,14 @@ export const RESPONSE_MESSAGES = {
         INVALID_CATEGORY: 'Invalid category',
         MAX_CATEGORIES: 'Please select up to three categories only',
         INVALID_IMAGE_URL: 'Image URL must end with .jpg, .jpeg, .webp, or .png'
+    },
+    USERS: {
+        SIGNED_UP:'New user created',
+        SIGNED_IN:'Successfully signed in',
+        SIGNED_OUT:'Successfully signed out',
+        EMAIL_ALREADY_IN_USE:"Email have been already used.",
+        USER_NOT_EXISTS:"User don't exist",
+        CODE_NOT_FOUND:"Something went wrong",
+        INVALID_PASSWORD:"Invalid password."
     }
 };
