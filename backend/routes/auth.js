@@ -12,21 +12,21 @@ import {
   signOutUser,
 } from '../controllers/auth-controller.js';
 
-//open auth window of provided by google
+//GOOGLE STRATEGY
 router.get('/google', openGoogleAuthWindow);
-router.post('/google/signup', signUpWithGoogle);
-router.post('/google/signin', signInWithGoogle);
+router.get('/google/signup/callback', signUpWithGoogle);
+router.get('/google/signin/callback', signInWithGoogle);
 
-//open auth window of provided by github
+//GITHUB STRATEGY
 router.get('/github', openGithubAuthWindow);
-router.post('/github/signup', signUpWithGithub);
-router.post('/github/signin', signInWithGithub);
+router.get('/github/signup/callback', signUpWithGithub);
+router.get('/github/signin/callback', signInWithGithub);
 
-//regular startegy
+//REGULAR EMAIL PASSWORD STRATEGY
 router.post('/email-password/signup', signUpWithEmail);
 router.post('/email-password/signin', signInWithEmail);
 
-//signOut
+//SIGN OUT
 router.post('/signout', signOutUser);
 
 export default router;

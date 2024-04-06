@@ -1,31 +1,19 @@
 import User from '../models/user.js';
-import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import axios from 'axios';
 import { HTTP_STATUS, RESPONSE_MESSAGES } from '../utils/constants.js';
-dotenv.config();
+import { accessCookieOptions, refreshCookieOptions } from '../utils/cookie_options.js';
 const { hash, compareSync } = bcrypt;
 const { sign } = jwt;
 
-const accessCookieOptions = {
-  httpOnly: true,
-  sameSite: 'None',
-  secure: true,
-  maxAge: 1000,
-};
-const refreshCookieOptions = {
-  httpOnly: true,
-  sameSite: 'None',
-  secure: true,
-  maxAge: 1000,
-};
-
-//Regular email password strategy
+//REGULAR EMAIL PASSWORD STRATEGY
+//1.Sign Up
 export const signUpWithEmail = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
-      throw new Error('All fields are mandatory.');
+      throw new Error('All fields are required.');
     }
     const isExisitsUser = await User.findOne({ email });
     if (isExisitsUser) {
@@ -59,6 +47,7 @@ export const signUpWithEmail = async (req, res, next) => {
   }
 };
 
+//2.Sign In
 export const signInWithEmail = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -70,7 +59,6 @@ export const signInWithEmail = async (req, res, next) => {
       throw new Error('Email does not exist');
     }
     if (isUserExists && compareSync(password, isUserExists.password)) {
-      console.log('inside');
       const accessToken = sign(
         { name: isUserExists.name, _id: isUserExists._id },
         process.env.JWT_SECRET,
@@ -101,19 +89,18 @@ export const signInWithEmail = async (req, res, next) => {
   } catch (error) {
     res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
       success: false,
-
       message: error.message,
     });
   }
 };
 
-//Google Strategy
-
+//GOOGLE STRTEGY
+//1.Open google auth window
 export const openGoogleAuthWindow = (req, res, next) => {
   const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth?';
   const params = new URLSearchParams({
     client_id: process.env.GAUTH_CLIENT_ID,
-    redirect_uri: 'http://localhost:5000/auth/google/callback',
+    redirect_uri: process.env.REDIRECTION_URL,
     scope: 'profile email',
     response_type: 'code',
   });
@@ -121,6 +108,7 @@ export const openGoogleAuthWindow = (req, res, next) => {
   res.redirect(googleAuthUrl + params.toString());
 };
 
+//2.Sign Up
 export const signUpWithGoogle = async (req, res, next) => {
   const code = req.query.code;
   if (!code) {
@@ -137,7 +125,7 @@ export const signUpWithGoogle = async (req, res, next) => {
         client_id: process.env.GAUTH_CLIENT_ID,
         client_secret: process.env.GAUTH_CLIENT_SECRET,
         code,
-        redirect_uri: procees.env.REDIRECTION_URL,
+        redirect_uri: process.env.REDIRECTION_URL,
         grant_type: 'authorization_code',
       },
       {
@@ -165,7 +153,6 @@ export const signUpWithGoogle = async (req, res, next) => {
     });
     res.cookie('access_token', accessToken, accessCookieOptions);
     res.cookie('refresh_token', refreshToken, refreshCookieOptions);
-
     res.status(HTTP_STATUS.OK).json({
       success: true,
       message: RESPONSE_MESSAGES.USERS.SIGNED_UP,
@@ -184,6 +171,7 @@ export const signUpWithGoogle = async (req, res, next) => {
   }
 };
 
+//3.Sign In
 export const signInWithGoogle = async (req, res, next) => {
   const code = req.query.code;
   if (!code) {
@@ -200,7 +188,7 @@ export const signInWithGoogle = async (req, res, next) => {
         client_id: process.env.GAUTH_CLIENT_ID,
         client_secret: process.env.GAUTH_CLIENT_SECRET,
         code,
-        redirect_uri: procees.env.REDIRECTION_URL,
+        redirect_uri: process.env.REDIRECTION_URL,
         grant_type: 'authorization_code',
       },
       {
@@ -230,7 +218,7 @@ export const signInWithGoogle = async (req, res, next) => {
       message: RESPONSE_MESSAGES.USERS.SIGNED_IN,
       user: {
         name: name,
-        id: newUser._id,
+        id: isUserExists._id,
       },
       accessToken,
       refreshToken,
@@ -243,20 +231,21 @@ export const signInWithGoogle = async (req, res, next) => {
   }
 };
 
-//Github Strategy
-
+//GITHUB STRATEGY
+//1.Open Github auth window
 export const openGithubAuthWindow = (req, res, next) => {
-  const githubAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth?';
+  const githubAuthUrl = 'https://github.com/login/oauth/authorize?';
   const params = new URLSearchParams({
-    client_id: yourClientID,
-    redirect_uri: procees.env.REDIRECTION_URL,
-    scope: 'user:email',
+    client_id: process.env.GITHUB_CLIENT_ID,
+    redirect_uri: process.env.REDIRECTION_URL,
+    scope: 'user:read user:email',
     response_type: 'code',
   });
 
   res.redirect(githubAuthUrl + params.toString());
 };
 
+//2.Sign up
 export const signUpWithGithub = async (req, res, next) => {
   const code = req.query.code;
   if (!code) {
@@ -273,26 +262,27 @@ export const signUpWithGithub = async (req, res, next) => {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: procees.env.REDIRECTION_URL,
-        grant_type: 'authorization_code',
       },
       {
         headers: { Accept: 'application/json' },
       }
     );
-    const userInfo = await axios.get(process.env.GITHUB_, {
+    const userInfo = await axios.get(process.env.GITHUB_USER_URL, {
       headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` },
     });
-    const { login: username, email } = userInfo.data;
+    if (userInfo.data.email == null) {
+      throw new Error("Your github account's email is not publically available.");
+    }
+    const { name, email } = userInfo.data;
     const isUserAlreadyExists = await User.findOne({ email });
     if (isUserAlreadyExists) {
       throw new Error(RESPONSE_MESSAGES.USERS.EMAIL_ALREADY_IN_USE);
     }
     const newUser = await User.create({
-      name: username,
+      name,
       email,
     });
-    const payload = { name: username, _id: newUser._id };
+    const payload = { name, _id: newUser._id };
     const accessToken = sign(payload, process.env.JWT_SECRET, {
       expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN,
     });
@@ -306,7 +296,7 @@ export const signUpWithGithub = async (req, res, next) => {
       success: true,
       message: RESPONSE_MESSAGES.USERS.SIGNED_UP,
       user: {
-        name: name,
+        name,
         id: newUser._id,
       },
       accessToken,
@@ -320,6 +310,7 @@ export const signUpWithGithub = async (req, res, next) => {
   }
 };
 
+//3.Sign In
 export const signInWithGithub = async (req, res, next) => {
   const code = req.query.code;
   if (!code) {
@@ -336,8 +327,6 @@ export const signInWithGithub = async (req, res, next) => {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: procees.env.REDIRECTION_URL,
-        grant_type: 'authorization_code',
       },
       {
         headers: { Accept: 'application/json' },
@@ -346,12 +335,12 @@ export const signInWithGithub = async (req, res, next) => {
     const userInfo = await axios.get(process.env.GITHUB_USER_URL, {
       headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` },
     });
-    const { login: username, email } = userInfo.data;
+    const { name, email } = userInfo.data;
     const isUserExists = await User.findOne({ email });
     if (!isUserExists) {
       throw new Error(RESPONSE_MESSAGES.USERS.USER_NOT_EXISTS);
     }
-    const payload = { name: username, _id: isUserExists._id };
+    const payload = { name, _id: isUserExists._id };
     const accessToken = sign(payload, process.env.JWT_SECRET, {
       expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN,
     });
@@ -365,8 +354,8 @@ export const signInWithGithub = async (req, res, next) => {
       success: true,
       message: RESPONSE_MESSAGES.USERS.SIGNED_IN,
       user: {
-        name: username,
-        id: newUser._id,
+        name,
+        id: isUserExists._id,
       },
       accessToken,
       refreshToken,
@@ -382,8 +371,8 @@ export const signInWithGithub = async (req, res, next) => {
 //Sign Out
 export const signOutUser = async (req, res, next) => {
   try {
-    res.cookie('accesstoken', '', { maxAge: 1 });
-    res.cookie('refreshtoken', '', { maxAge: 1 });
+    res.cookie('access_token', '', { maxAge: 1 });
+    res.cookie('refresh_token', '', { maxAge: 1 });
 
     res.status(200).json({ success: true, message: RESPONSE_MESSAGES.USERS.SIGNED_OUT });
   } catch (error) {
